@@ -10,10 +10,11 @@
 
 ---
 
-## 1. DETECTION & MONITORING CAPABILITIES
+## WAF Requirements by Capability
 
 | Criteria | Description | Priority |
 |----------|-------------|----------|
+| **1. DETECTION & MONITORING CAPABILITIES** | | |
 | Real-Time Traffic Analysis | Ability to monitor all incoming HTTP/HTTPS traffic in real-time with immediate threat detection and alerting | M |
 | Baseline Threat Detection | Ability to detect OWASP Top 10 threats (SQL injection, XSS, CSRF, etc.) with signature-based detection | M |
 | ML-Based Anomaly Detection | Ability to perform behavioral analysis for unknown threat patterns with continuous learning | M |
@@ -23,13 +24,7 @@
 | Zero-Day Threat Protection | Ability to perform advanced behavioral analysis for unknown threats with sandboxing capabilities | C |
 | Bot Detection & Management | Ability to identify and block malicious bots and automated attacks with CAPTCHA integration | C |
 | Manual Traffic Analysis | Ability to avoid manual review of all traffic logs with automated processing | W |
-
----
-
-## 2. PROTECTION & BLOCKING CAPABILITIES
-
-| Criteria | Description | Priority |
-|----------|-------------|----------|
+| **2. PROTECTION & BLOCKING CAPABILITIES** | | |
 | Baseline Protection | Ability to block OWASP Top 10 attacks automatically with immediate blocking of critical security threats | M |
 | Rate Limiting | Ability to implement request rate limiting to prevent DDoS attacks with adaptive rate limiting based on threat scoring | M |
 | Emergency Response | Ability for engineering teams to quickly block threats during incidents with immediate response to critical security events | M |
@@ -38,13 +33,7 @@
 | Advanced DDoS Protection | Ability to provide comprehensive DDoS mitigation with multiple layers and volumetric attack protection | C |
 | API Security | Ability to protect REST APIs and GraphQL endpoints with API rate limiting, authentication, and payload validation | C |
 | Manual Blocking Decisions | Ability to avoid manual intervention for standard threat blocking with automated decision-making | W |
-
----
-
-## 3. RULE MANAGEMENT & OPTIMIZATION
-
-| Criteria | Description | Priority |
-|----------|-------------|----------|
+| **3. RULE MANAGEMENT & OPTIMIZATION** | | |
 | Baseline Security Rules | Ability to implement OWASP Top 10 protection rules as minimum baseline with standard security rules for all applications | M |
 | ML-Based Ruleset Recommendations | Ability to intelligently analyze existing WAF rules for optimization and identify redundant or conflicting rules | M |
 | Rule Performance Monitoring | Ability to monitor rule performance and impact on application speed with performance impact analysis | M |
@@ -54,13 +43,7 @@
 | Predictive Rule Generation | Ability to generate new rules based on emerging threat patterns with machine learning-driven optimization | C |
 | Rule Versioning & Rollback | Ability to maintain rule version history and rollback capabilities with rule change auditing | C |
 | Manual Rule Management | Ability to eliminate manual rule creation and maintenance with automated rule generation and optimization | W |
-
----
-
-## 4. DASHBOARD & REPORTING CAPABILITIES
-
-| Criteria | Description | Priority |
-|----------|-------------|----------|
+| **4. DASHBOARD & REPORTING CAPABILITIES** | | |
 | Engineering Team Dashboards | Ability to provide dashboards that engineering teams can understand and use with real-time visibility into application security status | M |
 | Security Team Dashboards | Ability to provide security teams with oversight and compliance reporting with compliance reporting templates | M |
 | Incident Response Views | Ability to provide clear incident response views for engineering teams with quick threat assessment and response coordination | M |
@@ -69,13 +52,7 @@
 | Executive Reporting | Ability to generate executive-level security reports and metrics with business impact analysis | C |
 | Compliance Automation | Ability to automate compliance report generation for various standards with audit trail maintenance | C |
 | Manual Report Generation | Ability to avoid manual report creation and data compilation with automated reporting and dashboard updates | W |
-
----
-
-## 5. INTEGRATION & DEPLOYMENT CAPABILITIES
-
-| Criteria | Description | Priority |
-|----------|-------------|----------|
+| **5. INTEGRATION & DEPLOYMENT CAPABILITIES** | | |
 | Infrastructure as Code (IaC) | Ability to deploy WAF using Terraform, CloudFormation, or similar IaC tools with version-controlled configuration | M |
 | CI/CD Integration | Ability to integrate WAF deployment into existing CI/CD pipelines with automated testing of WAF rules | M |
 | Cloud-Native Deployment | Ability to deploy as a cloud service with auto-scaling capabilities and integration with major cloud providers | M |
@@ -86,13 +63,7 @@
 | Container & Kubernetes Support | Ability to deploy in containerized environments and Kubernetes clusters with microservices protection | C |
 | Multi-Cloud Support | Ability to protect applications across multiple cloud providers with centralized management | C |
 | On-Premises Only Deployment | Ability to require cloud-native architecture with no traditional hardware appliances and SaaS-first approach | W |
-
----
-
-## 6. COMPLIANCE & SECURITY CAPABILITIES
-
-| Criteria | Description | Priority |
-|----------|-------------|----------|
+| **6. COMPLIANCE & SECURITY CAPABILITIES** | | |
 | OWASP Top 10 Protection | Ability to protect against all OWASP Top 10 web application vulnerabilities with comprehensive coverage | M |
 | SSL/TLS Support | Ability to handle encrypted traffic and SSL/TLS termination with certificate management | M |
 | Compliance Standards | Ability to support PCI-DSS, GDPR, HIPAA, and SOX compliance requirements with automated compliance checking | S |
@@ -100,13 +71,7 @@
 | Advanced Encryption | Ability to implement additional encryption layers and key management with end-to-end encryption | C |
 | Privacy Controls | Ability to implement privacy controls and data anonymization with GDPR-specific features | C |
 | Proprietary Security Protocols | Ability to avoid custom encryption algorithms and proprietary authentication with non-standard security protocols | W |
-
----
-
-## 7. PERFORMANCE & SCALABILITY CAPABILITIES
-
-| Criteria | Description | Priority |
-|----------|-------------|----------|
+| **7. PERFORMANCE & SCALABILITY CAPABILITIES** | | |
 | High Availability | Ability to provide 99.9% uptime with automatic failover capabilities and distributed deployment | M |
 | Low Latency | Ability to process requests with minimal impact on application performance with sub-100ms response times | M |
 | Auto-Scaling | Ability to automatically scale based on traffic volume and demand with cost optimization | S |
