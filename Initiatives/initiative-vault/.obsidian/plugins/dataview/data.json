@@ -1,0 +1,9 @@
+{
+  "settings": {
+    "defaultDateFormat": "YYYY-MM-DD",
+    "defaultDateTimeFormat": "YYYY-MM-DD HH:mm:ss",
+    "numberFormat": "en",
+    "dateFormat": "YYYY-MM-DD",
+    "timeFormat": "HH:mm:ss"
+  }
+} 

@@ -1,0 +1,98 @@
+{
+  "communityPluginBrowsing": {
+    "communityPluginBrowsing": true
+  },
+  "communityPluginBrowsing-pro": {
+    "communityPluginBrowsing-pro": true
+  },
+  "dataview": {
+    "dataview": true
+  },
+  "kanban": {
+    "kanban": true
+  },
+  "obsidian-git": {
+    "obsidian-git": true
+  },
+  "periodic-notes": {
+    "periodic-notes": true
+  },
+  "quick-add": {
+    "quick-add": true
+  },
+  "templater-obsidian": {
+    "templater-obsidian": true
+  },
+  "tracker": {
+    "tracker": true
+  },
+  "calendar": {
+    "calendar": true
+  },
+  "obsidian-charts": {
+    "obsidian-charts": true
+  },
+  "obsidian-tasks-plugin": {
+    "obsidian-tasks-plugin": true
+  },
+  "obsidian-timeline": {
+    "obsidian-timeline": true
+  },
+  "obsidian-mind-map": {
+    "obsidian-mind-map": true
+  },
+  "obsidian-daily-notes": {
+    "obsidian-daily-notes": true
+  },
+  "obsidian-weekly-notes": {
+    "obsidian-weekly-notes": true
+  },
+  "obsidian-monthly-notes": {
+    "obsidian-monthly-notes": true
+  },
+  "obsidian-yearly-notes": {
+    "obsidian-yearly-notes": true
+  },
+  "obsidian-goal-tracker": {
+    "obsidian-goal-tracker": true
+  },
+  "obsidian-projects": {
+    "obsidian-projects": true
+  },
+  "obsidian-gantt-chart": {
+    "obsidian-gantt-chart": true
+  },
+  "obsidian-kanban": {
+    "obsidian-kanban": true
+  },
+  "obsidian-mindmap": {
+    "obsidian-mindmap": true
+  },
+  "obsidian-charts": {
+    "obsidian-charts": true
+  },
+  "obsidian-timeline": {
+    "obsidian-timeline": true
+  },
+  "obsidian-tasks-plugin": {
+    "obsidian-tasks-plugin": true
+  },
+  "obsidian-git": {
+    "obsidian-git": true
+  },
+  "obsidian-periodic-notes": {
+    "obsidian-periodic-notes": true
+  },
+  "obsidian-quick-add": {
+    "obsidian-quick-add": true
+  },
+  "obsidian-templater": {
+    "obsidian-templater": true
+  },
+  "obsidian-tracker": {
+    "obsidian-tracker": true
+  },
+  "obsidian-dataview": {
+    "obsidian-dataview": true
+  }
+} 

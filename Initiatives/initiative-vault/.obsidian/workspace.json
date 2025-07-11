@@ -1,0 +1,68 @@
+{
+  "main": {
+    "id": "main",
+    "type": "main",
+    "active": "2024-01-01",
+    "activeLeaf": true,
+    "children": [
+      {
+        "id": "2024-01-01",
+        "type": "markdown",
+        "state": {
+          "file": "2024-01-01",
+          "mode": "preview",
+          "source": false,
+          "state": {
+            "scroll": 0
+          }
+        }
+      }
+    ],
+    "direction": "vertical",
+    "width": 0.5
+  },
+  "left": {
+    "id": "left",
+    "type": "left",
+    "active": "file-explorer",
+    "activeLeaf": false,
+    "children": [
+      {
+        "id": "file-explorer",
+        "type": "file-explorer",
+        "state": {
+          "file": "2024-01-01",
+          "mode": "source",
+          "source": true,
+          "state": {
+            "scroll": 0
+          }
+        }
+      }
+    ],
+    "direction": "vertical",
+    "width": 0.25
+  },
+  "right": {
+    "id": "right",
+    "type": "right",
+    "active": "outline",
+    "activeLeaf": false,
+    "children": [
+      {
+        "id": "outline",
+        "type": "outline",
+        "state": {
+          "file": "2024-01-01",
+          "mode": "source",
+          "source": true,
+          "state": {
+            "scroll": 0
+          }
+        }
+      }
+    ],
+    "direction": "vertical",
+    "width": 0.25
+  }
+} 

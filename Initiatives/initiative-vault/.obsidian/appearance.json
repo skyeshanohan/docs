@@ -1,0 +1,11 @@
+{
+  "accentColor": "#007acc",
+  "baseFontSize": 16,
+  "cssTheme": "Minimal",
+  "interfaceFontFamily": "Inter",
+  "textFontFamily": "Inter",
+  "monospaceFontFamily": "JetBrains Mono",
+  "showInlineTitle": false,
+  "translucency": false,
+  "accentColorOption": "accent"
+} 
