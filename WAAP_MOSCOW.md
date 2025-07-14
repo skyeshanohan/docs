@@ -1,17 +1,3 @@
-# Web Application and API Protection (WAAP) - MoSCoW Requirements Table
-
-## Project Overview
-| **Project Name:** | WAAP Implementation Project |
-|------------------|---------------------------|
-| **Project Type:** | Security Infrastructure |
-| **Target Applications:** | Web applications, APIs, microservices, GraphQL, REST, SOAP, WebSockets, gRPC |
-| **Primary Goal:** | Protect web applications and APIs from OWASP Top 10 threats, API security risks, and advanced attacks |
-| **Ownership Model:** | Engineering teams own WAAP implementation and operations, Security provides support and oversight |
-
----
-
-## WAAP Requirements by Capability
-
 | Criteria | Description | Priority |
 |----------|-------------|----------|
 | **1. DETECTION & MONITORING CAPABILITIES** | | |
@@ -86,68 +72,72 @@
 | Manual Performance Tuning | Ability to avoid manual performance optimization and scaling decisions with automated performance management | Won't Have |
 | **8. OPERATIONAL EFFICIENCY CAPABILITIES** | | |
 | Ease of Deployment | Ability to provision and deploy WAAP solutions with minimal configuration and rapid setup | Must Have |
-| Ease of Management | Ability to manage WAAP policies, rules, and configurations through intuitive interfaces | Must Have |
-| Risk Management | Ability to assess and manage security risks with automated threat analytics and risk scoring | Must Have |
-| Logging & Auditing | Ability to provide comprehensive logging, auditing, and compliance reporting capabilities | Must Have |
+| Ease of Management | Ability to manage WAAP policies, rules, and configurations using API-first capabilities| Must Have |
 | Visibility & Analytics | Ability to provide real-time visibility into security events, traffic patterns, and threat intelligence | Should Have |
-| Support & Documentation | Ability to provide comprehensive documentation, support channels, and knowledge base access | Should Have |
 | Integration Capabilities | Ability to integrate with existing security infrastructure, SIEM systems, and cloud services | Should Have |
 | Scaling & Elasticity | Ability to scale automatically based on traffic demands with load balancing and failover capabilities | Should Have |
-| Certificate Management | Ability to manage SSL/TLS certificates with automatic renewal and procurement support | Should Have |
 | Geolocation Security | Ability to implement geolocation-based security policies and anomaly detection | Could Have |
 
 ---
 
-## Priority Summary
+## Recommended Vendors to Review
 
-| Priority Level | Count | Focus Areas |
-|----------------|-------|-------------|
-| **Must Have** | 28 | Core security, API protection, engineering ownership, baseline protection |
-| **Should Have** | 18 | Enhanced capabilities, automation, self-service, operational efficiency |
-| **Could Have** | 12 | Advanced features, future enhancements, edge computing |
-| **Won't Have** | 8 | Manual processes, proprietary protocols, on-premises only |
+Based on the 2025 Cloud WAAP CyberRisk Validation Report v4.0, the following vendors are recommended for evaluation:
 
----
+### **Leader Category Vendors**
 
-## Success Criteria
+#### **Traceable by Harness**
+- **Pros**: Highest security efficacy (99.28%), excellent API security protection, Secure by Design/Default certified
+- **Cons**: Newer vendor with limited enterprise history
+- **Deployment Type**: Cloud Native
 
-### Technical Success Metrics
-- 95%+ threat detection accuracy with <1% false positives
-- 90%+ API security protection coverage across all protocols
-- Sub-100ms response time for security decisions
-- 99.9% uptime for protection services
-- 100% OWASP Top 10 baseline protection coverage
-- 100% OWASP API Top 10 baseline protection coverage
-- Engineering teams can deploy WAAP changes within 24 hours
+#### **Fortinet**
+- **Pros**: Highest operational efficiency (96.2%), strong enterprise heritage, comprehensive integration
+- **Cons**: AWS AMI deployment limits cloud flexibility, requires more infrastructure management
+- **Deployment Type**: Cloud Native (AWS AMI)
 
-### Business Success Metrics
-- 50% reduction in security incidents
-- 60% reduction in API-related security incidents
-- Engineering teams own 80% of WAAP operations
-- 90% engineering team satisfaction with WAAP usability
-- 40% improvement in threat response time
-- 100% compliance with relevant security standards
-- Security team provides support, not primary operations
+#### **Imperva**
+- **Pros**: Strong security efficacy (87.94%), excellent operational efficiency, established enterprise presence
+- **Cons**: Higher cost, complex feature set requiring additional training
+- **Deployment Type**: Cloud Native
 
----
+#### **Akamai**
+- **Pros**: Global CDN with edge computing, excellent performance/scalability, comprehensive DDoS protection
+- **Cons**: May be overkill for smaller organizations, complex pricing, requires CDN integration
+- **Deployment Type**: Edge
 
-## Implementation Timeline
+### **Contender Category Vendors**
 
-| Phase | Timeline | Focus | Key Deliverables |
-|-------|----------|-------|------------------|
-| **Phase 1** | Months 1-2 | Foundation & Engineering Ownership | WAAP deployment, CI/CD integration, engineering training, API security baseline |
-| **Phase 2** | Months 3-4 | Self-Service & Automation | Self-service configuration, ML detection, automated testing, API protocol support |
-| **Phase 3** | Months 5-6 | Optimization & Scaling | Performance optimization, engineering autonomy, security guardrails, advanced API protection |
+#### **Microsoft**
+- **Pros**: Native Azure integration, strong enterprise support, Secure by Design/Default certified
+- **Cons**: Lower security efficacy (72.98%), limited to Azure ecosystem
+- **Deployment Type**: Cloud Native (Azure)
 
----
+#### **Prophaze**
+- **Pros**: Good security efficacy (82.30%), cloud-native deployment, competitive pricing
+- **Cons**: Lower operational efficiency, smaller vendor with limited enterprise presence
+- **Deployment Type**: Cloud Native
 
-## Resource Requirements
+#### **Check Point**
+- **Pros**: High operational efficiency (92.2%), strong enterprise heritage, comprehensive threat intelligence
+- **Cons**: Lower security efficacy (70.15%), complex management interface
+- **Deployment Type**: Cloud Native
 
-| Resource Type | Requirements | Ownership |
-|---------------|--------------|-----------|
-| **Technical** | WAAP solution with ML capabilities, API security features, and API access, Cloud infrastructure (IaC ready), CI/CD integration, Self-service configuration | Engineering teams |
-| **Engineering Teams** | Primary ownership of WAAP implementation and operations | Primary |
-| **Security Team** | Support, oversight, and compliance guidance | Support |
-| **DevOps Engineers** | CI/CD integration and infrastructure automation | Support |
-| **API Developers** | API security best practices and protocol-specific configurations | Support |
-| **Training** | Engineering team training on WAAP operations, API security, and security best practices | Shared | 
+### **Visionary Category Vendors**
+
+#### **Cloudflare**
+- **Pros**: Excellent global performance/CDN, strong DDoS protection, competitive pricing, easy deployment
+- **Cons**: Lower security efficacy (62.92%), limited advanced security features
+- **Deployment Type**: Edge
+
+#### **Barracuda**
+- **Pros**: Good operational efficiency (88.2%), competitive pricing, simple deployment model
+- **Cons**: Lower security efficacy (59.15%), limited advanced features
+- **Deployment Type**: Cloud Native
+
+### **Upcomer Category Vendors**
+
+#### **Amazon AWS**
+- **Pros**: Native AWS integration, cost-effective for AWS customers, simple deployment
+- **Cons**: Lowest security efficacy (42.24%), limited to AWS ecosystem, basic feature set
+- **Deployment Type**: Cloud Native (AWS)
