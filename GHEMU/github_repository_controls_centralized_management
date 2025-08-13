@@ -1,0 +1,282 @@
+## GitHub Repository Security Configuration and Lifecycle Policy
+
+### 1) Scope and Intent
+This document defines mandatory repository-level security configurations, roles, and lifecycle controls for all application repositories. It is enforceable at repository creation and continuously thereafter. Non-compliance results in automatic archival until remediation.
+
+#### Audience and Usage
+- This policy serves both security stakeholders (Application Security, Security Architecture) and Software Engineers.
+- Engineers: follow the repository creation requirements, default branch controls, and remediation expectations.
+- Security stakeholders: use this to define/approve controls, review exceptions, and validate enforcement and evidence.
+
+##### Responsibility Snapshot
+| Activity | Primary | Approver |
+|---|---|---|
+| Repository creation compliance (Service ID + scanning) | Software Engineers | Application Security |
+| Default branch protections/rulesets | Security Architecture | Application Security |
+| SAST gating and remediation | Software Engineers | Application Security |
+| Secrets push protection | Software Engineers | Application Security |
+| Drift detection and archival actions | Automation/Security Engineering | Security Architecture |
+| Exceptions and break-glass | Application Security | Security Architecture |
+
+### 2) Roles and Access Model
+- **Repository Manager (new role)**: Replaces individual-level repository admin. Members assigned to this role can perform day-to-day repository management with reduced privileges compared to full Admin. Direct assignment of the built-in Admin role to individuals is not permitted.
+  - Implementation: Create an Organization-level Custom Repository Role named `Repository Manager` with granular permissions. Assign via Team membership only; do not assign to individuals directly.
+  - Allowed (examples): manage branch protections and rulesets, manage webhooks, manage Secrets/Variables and Environments, manage team access, update repository description/topics, update custom properties.
+  - Not allowed (examples): delete repository, transfer ownership, disable organization-enforced security features, bypass branch/ruleset protections, remove compliance automation apps/integrations, disable security features, change repository visibility.
+  - Break-glass Admin: Only security/infra support teams and automation have Admin. Any just-in-time elevation must be time-bound (≤ 24h), ticketed, and audited.
+
+
+### 3) Default Branch Controls (Pull Requests)
+ - Note: “Default branch” refers to the repository’s configured default branch in GitHub.
+- **Require PRs to the default branch**: All changes to the default branch must go through pull requests.
+- **Require approvals**: At least **+1 approval** from someone other than the committer is required before merging to the default branch (no self-approval).
+- **Required conversation resolution**: All PR conversations must be resolved before merge.
+- **Status checks**: Security checks defined in this policy must pass before merge. At minimum: "SAST Compliance Check". "SCA Compliance Check" is required but report-only and should always pass.
+- **Force pushes & deletions**: Disallowed on protected branches.
+ - **Rulesets**: Configure Organization-level Rulesets to enforce the above on the default branch. Admin bypass is disabled.
+  - Stable status checks (exact names):
+    - "SAST Compliance Check" (blocking on High/Critical)
+    - "SCA Compliance Check" (report-only; always passes)
+  - Single-check UX: one check name per control; reporting vs blocking behavior is policy-driven within the workflow, not exposed as separate checks.
+
+### 4) Repository Creation Requirements (Hard Requirements)
+Upon repository creation, the following must be completed within 5 days; otherwise the repository will be automatically archived until compliant:
+1) **Service ID (Custom Property)**: A valid Application CMDB ID must be set using the repository Custom Property `Service ID` by the repository owner.
+   - Format: To be defined. When finalized, it will be enforced via the built-in GitHub Custom Property regex validator and mapped to CMDB.
+   - Enforcement: Repositories without a `Service ID` within 5 days of creation are automatically archived (deactivated) until remediation.
+2) **Security Scanning Onboarding**: Merge the three onboarding actions (three separate pull requests or configuration steps):
+   - SAST scanning (code scanning) enabled and workflow merged
+   - SCA (software composition analysis) enabled and configuration merged (alert-only)
+   - Secrets Scanning enabled and configuration merged
+
+Notes:
+- Compliance automation validates the existence of the `Service ID` property and the presence of the three security configurations. Non-compliant repos are automatically archived and labeled until remediation.
+
+### 5) Security Scanning and Alerts
+- **SAST (Static Application Security Testing)**
+  - Runs on every pull request across all branches.
+  - **Merge gate**: Findings with severity High or Critical block PR merge until resolved. Only the `secprodinfra` team may modify or approve changes to this threshold; any override requires `secprodinfra` approval.
+  - Language selection: org defaults from `organizations.yml` if set; otherwise auto-detect per repository.
+- **SCA (Software Composition Analysis)**
+  - Must be enabled during onboarding (separate action). Executes on PRs and at least nightly on the default branch.
+  - **No merge gate**: Do not block merges. Post PR alerts for Critical findings and track in vulnerability management.
+- **Secrets Scanning and Push Protection**
+  - Enable organization/repository Secret Scanning and **Secrets Push Protection** with bypass allowed.
+  - Not a hard block: engineers may bypass when justified. Every bypass event triggers an n8n webhook that posts a message to Slack channel `#team-spi-alerts` with repository, actor, and secret type.
+  - All bypass events are logged for auditing and reviewed weekly by security.
+
+### 6) Repository Lifecycle
+
+-- **Creation**
+  - Repository created without individual Admins; assign the `Repository Manager` role via team membership.
+  - Set `Service ID` custom property with a valid value.
+  - Merge onboarding actions for SAST, SCA, and Secrets Scanning (three separate actions).
+  - Non-compliance results in automatic archival until all required steps are completed.
+
+- **Active Maintenance**
+  - All changes to default branch via PRs with +1 approval minimum.
+  - SAST executes on every PR; High/Critical findings block merge until resolved.
+  - Secrets Push Protection blocks secret-containing pushes; any bypass is logged.
+  - Keep SCA active and address surfaced risks per security program SLAs.
+
+- **Dormancy and Archival**
+  - Repositories that become non-compliant with required properties or security configurations, or that are flagged by compliance automation, are **automatically archived**. Archival sets the repository to read-only until remediation.
+  - Inactivity: If no commits occur on the default branch within 365 days, the repository is automatically archived.
+  - CMDB Decommission: When the associated CMDB application status changes to decommissioned, archive the repository 30 days thereafter (timer owned by CMDB workflow).
+  - Note: This automatic archival for non-compliance is indefinite until remediation.
+
+- **Decommissioning**
+  - When a repository is no longer needed, it should be archived and tagged with decommission metadata (including `Service ID`, owning team, rationale, and sunset date).
+  - For CMDB-driven decommission: Archive 30 days after CMDB status = decommissioned. After an additional 30 days in archived state, export repository data to long-term storage (e.g., S3), verify checksum, record audit evidence, and delete the repository in GitHub.
+  - Post-deletion recovery: Deleted repositories can be restored directly in GitHub for up to 90 days after deletion. After 90 days, recovery requires restoring from the S3 export (using the recorded bucket/key and checksum).
+
+- **Reinstatement**
+  - To unarchive, a Repository Manager must restore compliance (custom property set, SAST/SCA/Secrets Scanning enabled) and request unarchive via the standard workflow.
+
+### 8) Exceptions and Break-Glass Access
+- **Policy Exceptions**: Policy exceptions are not permitted.
+- **Bypass Controls**: Ruleset/branch protection bypass is disabled for Admins. Any emergency bypass requires a break-glass workflow with dual approval and audit logging.
+
+### 9) Enforcement and Monitoring
+- **Drift Detection**: Automated daily validation of required settings (custom properties, rulesets, security features). Non-compliance opens an issue, notifies owners, and auto-archives after 5 days if unresolved.
+- **Evidence Collection**: Store compliance evidence (scan results, archival/export logs, checksum verifications) in the central compliance repository.
+- **Reporting**: Weekly compliance report to engineering leadership; monthly metrics to security governance.
+
+### 10) Ownership and Effective Date
+- **Document Owner**: Security Engineering
+- **Effective Date**: 2025-08-01
+- **Next Review**: 2026-02-01
+
+### 11) Centralized Policy-as-Code Management (Per-Organization Configuration)
+
+#### Overview
+Manage per-organization repository controls from a central policy repository. Desired state is defined in code and reconciled to each organization’s rulesets, variables, and reusable workflows.
+
+#### Central Policy Repository Structure
+- Enterprise-wide location: a single repository under the Enterprise (recommended org: `DV`, e.g., `DV/security-policy`).
+- `policies/organizations.yml`: Per-organization configuration (e.g., SCA alerting policy, required checks).
+- `.github/workflows/`: Central reusable workflows for SAST/SCA that emit stable status check names.
+- `reconciler/`: Automation (GitHub App or workflow) that applies the desired state to each org.
+
+#### Per-Organization Policy Definition
+Example `policies/organizations.yml`:
+```yaml
+org_policies:
+  dv:
+    sca_alerts: critical   # options: none | critical | all (alerts only, no gating)
+    required_checks:
+      - SAST Compliance Check
+      - SCA Compliance Check
+  fedramp:
+    sca_alerts: critical
+    required_checks:
+      - SAST Compliance Check
+      - SCA Compliance Check
+defaults:
+  required_checks:
+    - SAST Compliance Check
+    - SCA Compliance Check
+```
+
+#### Reusable Workflows (Centralized)
+Example centralized SCA workflow `sca-compliance-check.yml` (alerts only):
+```yaml
+on:
+  workflow_call:
+    inputs:
+      alert_level:
+        type: string
+        required: false
+jobs:
+  sca:
+    name: SCA Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: github/dependency-review-action@v4
+        with:
+          fail-on-severity: "none" # report-only; do not fail
+          comment-summary-in-pr: true
+          vulnerability-severity-threshold: ${{ inputs.alert_level || vars.SCA_ALERTS || 'critical' }}
+```
+
+Repositories consume it via:
+```yaml
+uses: DV/security-policy/.github/workflows/sca-compliance-check.yml@v1
+```
+
+Example centralized SAST workflow `sast-compliance-check.yml` (blocking on High/Critical by default, configurable):
+```yaml
+on:
+  workflow_call:
+    inputs:
+      block_threshold:
+        type: string
+        required: false
+jobs:
+  sast:
+    name: SAST Compliance Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: github/codeql-action/init@v3
+        with:
+          languages: javascript,python,go
+      - uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:all"
+      - name: Enforce threshold
+        run: |
+          THRESHOLD="${{ inputs.block_threshold || vars.SAST_BLOCK_THRESHOLD || 'high' }}"
+          # Placeholder for severity evaluation logic that fails the job on high/critical if THRESHOLD met.
+          echo "Threshold: $THRESHOLD"
+```
+
+#### Variables and Parameters
+- The reconciler sets `SCA_ALERTS` and `SAST_BLOCK_THRESHOLD` at the organization or repository level based on `organizations.yml`.
+- Reusable workflows read inputs first, then fall back to org/repo vars.
+- Any change to `SAST_BLOCK_THRESHOLD` in `organizations.yml` requires +1 approval from a member of the `secprodinfra` team via PR review in `DV/security-policy`.
+ - Rulesets must require exactly the status checks "SAST Compliance Check" and "SCA Compliance Check".
+- Global safety flags (feature toggles) managed as org variables in `DV/security-policy`:
+  - `ENFORCEMENT_KILL_SWITCH`: when `true`, policy enforcement runs in read-only mode (dry-run). No settings writes, no ruleset updates, and no archival/deletion are performed.
+  - `ARCHIVAL_KILL_SWITCH` (optional, finer control): when `true`, archival and deletion actions are suspended, while non-blocking writes (e.g., variable updates, labeling) may continue.
+  - Both flags are evaluated at the start of each enforcement run. Defaults: `false`.
+ - Governance (policy-as-code): All changes to policy definitions in `DV/security-policy` (e.g., `policies/organizations.yml`, `.github/workflows/*` reusable workflows, `reconciler/*`) must be submitted via pull request and approved by the GitHub team `secprodinfra` (no self-approval).
+
+#### Kill Switch Implementation (High Level)
+- Purpose: Provide an emergency, org-wide pause to avoid blocking engineers when external dependencies fail.
+- Location of switches:
+  - Per-organization GitHub Actions variables: `ENFORCEMENT_KILL_SWITCH`, `ARCHIVAL_KILL_SWITCH`.
+  - Optional global short-circuit in `DV/security-policy` (repo variable) for enterprise-wide pause that the reconciler checks first.
+- How switches are toggled:
+  - A dedicated workflow in `DV/security-policy` (e.g., `.github/workflows/toggle-kill-switch.yml`) with `workflow_dispatch`.
+  - Only members of the `secprodinfra` team can change kill-switch status; the workflow runs in a protected environment and uses a GitHub App token to write org Actions variables.
+  - Direct human edits to org variables are disallowed outside this workflow.
+- Enforcement behavior when active:
+  - `ENFORCEMENT_KILL_SWITCH=true`: reconciler runs in read-only (detect/report) mode. No settings writes, no ruleset updates, no archival/deletion. Issues are labeled `kill-switch-active` and skipped actions are summarized in the report.
+  - `ARCHIVAL_KILL_SWITCH=true` only: reconciler applies non-blocking writes but suspends archival/deletion; skipped actions are recorded.
+- Notifications and audit:
+  - n8n posts to Slack `<SLACK_CHANNEL_TBD>` when switches are toggled (who, when, org, values, link to run), and opens/closes a tracking issue in `DV/security-policy` for `ENFORCEMENT_KILL_SWITCH`.
+  - Enforcement reports include current switch state and any skipped actions. All toggles are auditable via the workflow run and the App logs.
+- Precedence and defaults:
+  - Runtime org variables are the source of truth. Optional YAML defaults in `policies/organizations.yml` seed initial values only.
+  - The reconciler must not flip an active switch from true→false based on YAML defaults; only the toggle workflow changes live state.
+- Access control:
+  - Only Security can approve and run the toggle workflow. The GitHub App has least-privilege rights to write org variables; no broader admin rights are required.
+
+#### Rulesets Enforcement
+- For each organization, automation updates Org Rulesets to require status checks listed under `required_checks` (exactly `SAST Compliance Check`, `SCA Compliance Check`).
+- Keep status check names stable and vendor-agnostic to avoid frequent ruleset churn.
+
+#### Automation Split: Policy Enforcement (GitHub Actions) and Event Automation (n8n)
+- Purpose: Separate event-driven tasks from privileged policy enforcement while maintaining least privilege.
+
+- Policy Enforcement (GitHub Actions in `DV/security-policy`)
+  - Trigger: scheduled (e.g., hourly/daily) and on policy repo changes (dry-run supported).
+  - Auth: GitHub App with minimum org-level permissions required for settings changes.
+  - Tasks:
+    - Evaluate kill switches (`ENFORCEMENT_KILL_SWITCH`, `ARCHIVAL_KILL_SWITCH`) and switch to read-only mode if active.
+    - Create/update org and repo variables (e.g., `SCA_ALERTS`, `SAST_BLOCK_THRESHOLD`).
+    - Ensure required rulesets and status checks on the default branch.
+    - Detect drift and open issues in target repos and/or the policy repo.
+    - Timed enforcement: send T-3 days and T-24 hours email/Slack notifications, then auto-archive for: missing `Service ID`, unmerged SAST/SCA onboarding PRs after 5 days, 365-day default-branch inactivity, CMDB decommission +30 days (CMDB owns the timer signal).
+    - Coordinate decommission flow: at +60 days total (30 archived + 30 additional), perform export-to-S3, verify checksum, record evidence, and delete repo.
+   - Kill switch behavior:
+     - If `ENFORCEMENT_KILL_SWITCH` is `true`: perform detection, evidence collection, and reporting only. Skip settings writes, ruleset updates, archival, and deletions. Label issues with `kill-switch-active` and include a summary in the enforcement report.
+     - If only `ARCHIVAL_KILL_SWITCH` is `true`: perform non-blocking writes (e.g., variables, labels, ruleset check additions that do not tighten gating on existing branches) but skip archival and deletion actions. All skipped actions are recorded in the report.
+
+- Event Automation (n8n)
+  - Triggers: GitHub webhooks (repository created, pull_request, secret_scanning push_protection_bypass), CMDB decommission events.
+  - Tasks:
+    - Create onboarding PRs in repos to add centralized SAST/SCA reusable workflows; post reminders; assign the Repository Manager.
+    - Post Slack message to `#team-spi-alerts` on secrets push-protection bypass with repo, actor, secret type, and link to commit/PR.
+    - Receive CMDB decommissioned signals and notify the enforcement workflow; CMDB owns the +30 day archive timer.
+    - Optional: enrich notifications and create tracking issues for SCA critical alerts.
+   - Kill switch notifications:
+     - Watch `DV/security-policy` variable changes for `ENFORCEMENT_KILL_SWITCH` and `ARCHIVAL_KILL_SWITCH`. On activation or deactivation, post a message to `<SLACK_CHANNEL_TBD>` including who changed it, timestamp, current values, and a link to the change PR/run. Create/close a tracking issue in the policy repo when the enforcement kill switch is toggled.
+
+#### Enterprise Access to Central Workflows
+- Configure Actions policies to allow all orgs to use reusable workflows from `DV/security-policy`.
+- Pin workflow versions and restrict to trusted call sites.
+
+#### Least-Privilege Permissions
+- GitHub Actions (policy enforcement):
+  - Org: Rulesets read/write (policy), Actions settings read/write (workflows), Organization variables read/write.
+  - Repo: Contents (read for evidence; write only if needed for housekeeping), Metadata, Variables read/write.
+  - No user-level admin; no broader scopes than required.
+- n8n (events):
+  - Repo: Pull requests write (to open onboarding PRs), Issues write (optional), Metadata read, Webhook consumption.
+  - No org-level settings write; no ruleset admin rights.
+
+#### Change Management and Audit
+- All policy changes are made via PRs to the central repository (single source of truth in `DV/security-policy`).
+- All PRs that modify policy-as-code must receive approval from the GitHub team `secprodinfra` (no self-approval). This centralizes the audit trail in PR history.
+- Reconciler posts a summary of applied changes and evidence (audit logs, API responses) to the policy repo.
+
+#### Security Considerations
+- Principle of least privilege for the GitHub App.
+- Pin action versions and require checksum verification where available.
+- Keep stable status check names to decouple rulesets from vendor specifics.
+
+#### Notes
+- The reconciler is for continuous compliance: it does not replace human review but ensures policy is consistently applied.
+

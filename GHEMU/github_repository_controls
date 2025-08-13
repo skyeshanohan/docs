@@ -1,0 +1,112 @@
+## GitHub Repository Security Configuration and Lifecycle Policy
+
+### 1) Scope and Intent
+This document defines mandatory repository-level security configurations, roles, and lifecycle controls for all application repositories. It is enforceable at repository creation and continuously thereafter. Non-compliance results in automatic archival until remediation.
+
+#### Audience and Usage
+- This policy serves both security stakeholders (Application Security, Security Architecture) and Software Engineers.
+- Engineers: follow the repository creation requirements, default branch controls, and remediation expectations.
+- Security stakeholders: use this to define/approve controls, review exceptions, and validate enforcement and evidence.
+
+##### Responsibility Snapshot
+| Activity | Primary | Approver |
+|---|---|---|
+| Repository creation compliance (Service ID + scanning) | Software Engineers | Application Security |
+| Default branch protections/rulesets | Security Architecture | Application Security |
+| SAST gating and remediation | Software Engineers | Application Security |
+| Secrets push protection | Software Engineers | Application Security |
+| Drift detection and archival actions | Automation/Security Engineering | Security Architecture |
+| Exceptions and break-glass | Application Security | Security Architecture |
+
+### 2) Roles and Access Model
+- **Repository Manager (new role)**: Replaces individual-level repository admin. Members assigned to this role can perform day-to-day repository management with reduced privileges compared to full Admin. Direct assignment of the built-in Admin role to individuals is not permitted.
+  - Implementation: Create an Organization-level Custom Repository Role named `Repository Manager` with granular permissions. Assign via Team membership only; do not assign to individuals directly.
+  - Allowed (examples): manage branch protections and rulesets, manage webhooks, manage Secrets/Variables and Environments, manage team access, update repository description/topics, update custom properties.
+  - Not allowed (examples): delete repository, transfer ownership, disable organization-enforced security features, bypass branch/ruleset protections, remove compliance automation apps/integrations, disable security features, change repository visibility.
+  - Break-glass Admin: Only security/infra support teams and automation have Admin. Any just-in-time elevation must be time-bound (≤ 24h), ticketed, and audited.
+
+
+### 3) Default Branch Controls (Pull Requests)
+- Note: “Default branch” refers to the repository’s configured default branch in GitHub.
+- **Require PRs to the default branch**: All changes to the default branch must go through pull requests.
+- **Require approvals**: At least **+1 approval** from someone other than the committer is required before merging to the default branch (no self-approval).
+- **Required conversation resolution**: All PR conversations must be resolved before merge.
+- **Status checks**: Security checks defined in this policy must pass before merge. At minimum: "SAST Compliance Check". "SCA Compliance Check" is required but report-only and should always pass. Scans must run on all pull requests across all branches.
+- **Force pushes & deletions**: Disallowed on protected branches.
+- **Rulesets**: Configure Organization-level Rulesets to enforce the above on the default branch. Admin bypass is disabled.
+  - Stable status checks (exact names):
+    - "SAST Compliance Check" (blocking on High/Critical)
+    - "SCA Compliance Check" (report-only; always passes)
+  - Single-check UX: one check name per control; reporting vs blocking behavior is policy-driven within the workflow, not exposed as separate checks.
+
+### 4) Repository Creation Requirements (Hard Requirements)
+Upon repository creation, the following must be completed within 5 days; otherwise the repository will be automatically archived until compliant:
+1) **Service ID (Custom Property)**: A valid Application CMDB ID must be set using the repository Custom Property `Service ID` by the repository owner.
+   - Format: To be defined. When finalized, it will be enforced via the built-in GitHub Custom Property regex validator and mapped to CMDB.
+   - Enforcement: Repositories without a `Service ID` within 5 days of creation are automatically archived (deactivated) until remediation.
+2) **Security Scanning Onboarding**: Merge the three onboarding actions (three separate pull requests or configuration steps):
+   - SAST scanning (code scanning) enabled and workflow merged
+   - SCA (software composition analysis) enabled and configuration merged (alert-only)
+   - Secrets Scanning enabled and configuration merged
+
+Notes:
+- Compliance automation validates the existence of the `Service ID` property and the presence of the three security configurations. Non-compliant repos are automatically archived and labeled until remediation.
+
+### 5) Security Scanning and Alerts
+- **SAST (Static Application Security Testing)**
+  - Runs on every pull request across all branches.
+  - **Merge gate**: Findings with severity High or Critical block PR merge until resolved (baseline). Only the `secprodinfra` team may modify or approve changes to this threshold; any override requires `secprodinfra` approval.
+- **SCA (Software Composition Analysis)**
+  - Must be enabled during onboarding (separate action). Executes on PRs and at least nightly on the default branch.
+  - **No merge gate**: Do not block merges. Post PR alerts for Critical findings and track in vulnerability management.
+- **Secrets Scanning and Push Protection**
+  - Enable organization/repository Secret Scanning and **Secrets Push Protection** with bypass allowed.
+  - Not a hard block: engineers may bypass when justified. Every bypass event triggers an n8n webhook that posts a message to Slack channel `#team-spi-alerts` with repository, actor, and secret type.
+  - All bypass events are logged for auditing and reviewed weekly by security.
+
+### 6) Repository Lifecycle
+
+-- **Creation**
+  - Repository created without individual Admins; assign the `Repository Manager` role via team membership.
+  - Set `Service ID` custom property with a valid value.
+  - Merge onboarding actions for SAST, SCA, and Secrets Scanning (three separate actions).
+  - Non-compliance results in automatic archival until all required steps are completed.
+
+- **Active Maintenance**
+  - All changes to default branch via PRs with +1 approval minimum.
+  - SAST executes on every PR; High/Critical findings block merge until resolved.
+  - Secrets Push Protection blocks secret-containing pushes; any bypass is logged.
+  - Keep SCA active and address surfaced risks per security program SLAs.
+
+- **Dormancy and Archival**
+  - Repositories that become non-compliant with required properties or security configurations, or that are flagged by compliance automation, are **automatically archived**. Archival sets the repository to read-only until remediation.
+  - Inactivity: If no commits occur on the default branch within 365 days, the repository is automatically archived.
+  - CMDB Decommission: When the associated CMDB application status changes to decommissioned, archive the repository 30 days thereafter (timer owned by CMDB workflow).
+  - Note: This automatic archival for non-compliance is indefinite until remediation.
+
+- **Decommissioning**
+  - When a repository is no longer needed, it should be archived and tagged with decommission metadata (including `Service ID`, owning team, rationale, and sunset date).
+  - For CMDB-driven decommission: Archive 30 days after CMDB status = decommissioned. After an additional 30 days in archived state, export repository data to long-term storage (e.g., S3), verify checksum, record audit evidence, and delete the repository in GitHub.
+  - Post-deletion recovery: Deleted repositories can be restored directly in GitHub for up to 90 days after deletion. After 90 days, recovery requires restoring from the S3 export (using the recorded bucket/key and checksum).
+
+- **Reinstatement**
+  - To unarchive, a Repository Manager must restore compliance (custom property set, SAST/SCA/Secrets Scanning enabled) and request unarchive via the standard workflow.
+
+### 7) Exceptions and Break-Glass Access
+- **Policy Exceptions**: Policy exceptions are not permitted.
+- **Bypass Controls**: Ruleset/branch protection bypass is disabled for Admins. Any emergency bypass requires a break-glass workflow with dual approval and audit logging.
+
+### 8) Enforcement and Monitoring
+- **Drift Detection**: Automated daily validation of required settings (custom properties, rulesets, security features). Non-compliance opens an issue, notifies owners, and auto-archives after 5 days if unresolved.
+- **Evidence Collection**: Store compliance evidence (scan results, archival/export logs, checksum verifications) in the central compliance repository.
+- **Reporting**: Weekly compliance report to engineering leadership; monthly metrics to security governance.
+- **Auto-Archive Notifications**: For any scheduled auto-archive (e.g., missing `Service ID`, onboarding not merged, inactivity, CMDB decommission), send email and Slack notifications to the repository owner(s) at T-3 days and T-24 hours. Owner resolution: the user(s) assigned the `Repository Manager` role, mapped to Entra ID for contact details.
+
+### 9) Ownership and Effective Date
+- **Document Owner**: Security Engineering
+- **Effective Date**: 2025-08-01
+- **Next Review**: 2026-02-01
+
+
+
+
