@@ -3,6 +3,38 @@
 **Executive summary**  
 Standardize repository security with enterprise policy‑as‑code, default branch protections, and lifecycle controls. Repository administrators cannot change protected settings; only centralized policy can.
 
+### At‑a‑glance controls
+
+| Area                              | Decision/Default                                                                                        | Merge gate?                                        | Owner                              |
+|-----------------------------------|---------------------------------------------------------------------------------------------------------|----------------------------------------------------|------------------------------------|
+| Default branch protections        | PRs required; ≥1 non‑committer approval; CODEOWNERS review; no force push/delete                        | Yes — PR + approvals                               | Enterprise Security/Infra (policy) |
+| CODEOWNERS control                | 100% path coverage with Team owners; wildcard fallback to owning team                                   | Yes — CODEOWNERS review required                   | Enterprise Security/Infra (policy) |
+| Compliance Settings Check         | Required PR check; validates Service ID, security features, SAST/SCA setup                              | Yes — required check                               | GitHub App (central)               |
+| SAST                              | Runs on all PRs; blocks High/Critical                                                                   | Yes — severity gate                                | Reusable workflows (policy)        |
+| SCA                               | Runs on PRs + nightly; report‑only                                                                      | No                                                 | Reusable workflows (policy)        |
+| Secret Scanning & Push Protection | Enabled enterprise‑wide; bypass with justification; alerts to Slack                                     | Yes — Push Protection gate (bypassable)            | Enterprise Security/Infra          |
+| Creation requirements             | Service ID set; auto PRs enable SAST/SCA; 5‑day onboarding window                                       | Yes — merges blocked if non‑compliant after 5 days | Automation + App                   |
+| Lifecycle & archival              | Auto‑archive after 365 days inactivity or +30 after CMDB decommission; export → delete (90‑day restore) | N/A                                                | Policy + Automation                |
+| Repository administrators         | Admins cannot change protected settings, security, or visibility                                        | N/A                                                | Enterprise Security/Infra          |
+
+### What leaders need to know
+- Decisions and enforcement live in a central policy repo; changes happen via PRs and are auditable.
+- Teams keep working normally; only High/Critical SAST blocks merges. SCA is report‑only.
+- Onboarding gaps do not lock teams out; merges to default branch are blocked after 5 days until completed.
+- Push Protection can be bypassed with justification; all bypasses are surfaced to leadership channels.
+
+### Implementation options at a glance
+
+| Option                                       | Summary                                                                                | Tradeoff                                             |
+|----------------------------------------------|----------------------------------------------------------------------------------------|------------------------------------------------------|
+| A — Centralized policy‑as‑code (recommended) | Single policy repo + GitHub App reconciler; reusable SAST/SCA workflows; kill switches | Highest initial setup; best consistency and evidence |
+| B — Org‑level rulesets + templates           | Manual rulesets and templates per org; periodic audits                                 | Lower lift; higher drift and weaker evidence         |
+| C — Repo‑local autonomy (not recommended)    | Teams manage locally                                                                   | Highest drift; weakest auditability                  |
+
+
+<details>
+<summary>Repository controls — full detail</summary>
+
 ### Repository controls
 - **Default branch protections**
   - All changes to the default branch must use pull requests.
@@ -27,6 +59,11 @@ Standardize repository security with enterprise policy‑as‑code, default bran
   - Onboarding gaps (e.g., missing `Service ID` or unmerged base controls) do not trigger archival, but instead block merges to the default branch.
   - Decommission flow: archive → export to S3 (with checksum and evidence) → delete. GitHub’s native restore window is 90 days post‑deletion.
 
+</details>
+
+<details>
+<summary>Compliance Settings Check — full detail</summary>
+
 ### Compliance Settings Check — GitHub App
 - **Purpose**
   - Enforce baseline repository settings without requiring per‑repository workflow files.
@@ -45,6 +82,11 @@ Standardize repository security with enterprise policy‑as‑code, default bran
 - **Notifications and evidence**
   - The check output lists missing items with remediation guidance.
 
+</details>
+
+<details>
+<summary>Administration and enforcement — full detail</summary>
+
 ### Administration and enforcement
 - **Repository administrators**
   - May exist but cannot change protected settings.
@@ -53,6 +95,11 @@ Standardize repository security with enterprise policy‑as‑code, default bran
   - Enterprise Security/Infra owns protected configurations and policy changes via the central policy repository.
 - **Compliance Settings Check GitHub App**
   - See the dedicated section below; it publishes the required check and gates merges until repository settings and the `Service ID` are compliant.
+
+</details>
+
+<details>
+<summary>Implementation options — full detail</summary>
 
 ### Implementation options
 - **Option A — Centralized policy‑as‑code (Strongly recommended)**
@@ -69,9 +116,11 @@ Standardize repository security with enterprise policy‑as‑code, default bran
   - How it works: Teams own workflows and protections locally.
   - Tradeoffs: Inconsistent enforcement, high drift risk, difficult auditing, slower enterprise response.
 
+</details>
+
 ### Quick FAQs
 - **Will this slow merges?** No. SAST blocks only High/Critical; SCA is report‑only. A kill switch enables read‑only enforcement during outages.
 - **Who can change org/enterprise protections or thresholds?** Only `secprodinfra`, via PRs in the policy repo.
-- **What if onboarding is missed?** Merges to the default branch remain blocked by required checks until onboarding is complete. Automation sends reminders; repository stays writable for for remediation.
+- **What if onboarding is missed?** Merges to the default branch remain blocked by required checks until onboarding is complete. Automation sends reminders; repository stays writable for remediation.
 - **Why no early archival for onboarding gaps?** Archiving removes write access and slows remediation. We rely on merge blocking and reminders so teams can complete onboarding without losing access.
-- **Can repository administrators add users or change rulesets?** No. Access is via enterprise policy, Github Teams and security groups in Entra; rulesets/security settings are centrally owned.
+- **Can repository administrators add users or change rulesets?** No. Access is via enterprise policy, GitHub Teams and security groups in Entra; rulesets/security settings are centrally owned.
