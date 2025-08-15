@@ -1,0 +1,124 @@
+## GitHub Repository Security Configuration and Lifecycle Policy
+
+### 1) Scope and Intent
+This document defines mandatory repository-level security configurations, roles, and lifecycle controls for all application repositories. It is enforceable at repository creation and continuously thereafter. Non-compliance blocks merges via required checks. Archival is limited to default-branch inactivity and CMDB-driven decommission.
+
+#### Audience and Usage
+- This policy serves both security stakeholders (Application Security, Security Architecture) and Software Engineers.
+- Engineers: follow the repository creation requirements, default branch controls, and remediation expectations.
+- Security stakeholders: use this to define/approve controls, review exceptions, and validate enforcement and evidence.
+
+##### Responsibility Snapshot
+| Activity | Primary | Approver |
+|---|---|---|
+| Repository creation compliance (Service ID + scanning) | Software Engineers | Application Security |
+| Default branch protections/rulesets | Security Architecture | Application Security |
+| SAST gating and remediation | Software Engineers | Application Security |
+| Secrets push protection | Software Engineers | Application Security |
+| Drift detection and archival actions | Automation/Security Engineering | Security Architecture |
+| Exceptions and break-glass | Application Security | Security Architecture |
+
+### 2) Roles and Access Model
+- **Repository administrators**
+  - May exist at the repository level but cannot change protected settings at the organization or enterprise level.
+  - Protected: rulesets and branch protections, security features, visibility.
+- **Enterprise ownership**
+  - Security/Infra owns protected configurations and policy changes via the central policy repository.
+- **Break-glass**
+  - Emergency policy changes are performed only by Security/Infra via time-bound, audited elevation at the enterprise level; repository administrators cannot self-elevate or bypass protections.
+
+
+### 3) Default Branch Controls (Pull Requests)
+- Note: “Default branch” refers to the repository’s configured default branch in GitHub.
+- **Require PRs to the default branch**: All changes to the default branch must go through pull requests.
+- **Require approvals**: At least **+1 approval** from someone other than the committer is required before merging to the default branch (no self-approval).
+- **Require CODEOWNERS review**: Enable "Require review from Code Owners" on the default branch. Repositories must maintain a `CODEOWNERS` file mapping owned paths to Teams.
+- **Status checks**: Security checks defined in this policy must pass before merge. Required checks (stable names): "SAST Compliance Check" (blocking on High/Critical), "SCA Compliance Check" (report-only; always passes), and "Compliance Settings Check" (enterprise App; fails when required repo settings/properties are missing). Scans must run on all pull requests across all branches.
+- **Force pushes & deletions**: Disallowed on protected branches.
+- **Rulesets**: Configure Organization-level Rulesets to enforce the above on the default branch, including "Require review from Code Owners". Admin bypass is disabled.
+  - Stable status checks (exact names):
+    - "SAST Compliance Check" (blocking on High/Critical)
+    - "SCA Compliance Check" (report-only; always passes)
+    - "Compliance Settings Check" (App-emitted; settings/property compliance)
+  - Single-check UX: one check name per control; reporting vs blocking behavior is policy-driven within the workflow, not exposed as separate checks.
+
+### 4) Repository Creation Requirements (Hard Requirements)
+Upon repository creation, the following should be completed within 5 days. Until compliant, merges to the default branch remain blocked by required checks. Repositories are not auto-archived for onboarding gaps:
+1) **Service ID (Custom Property)**: A valid Application CMDB ID must be set using the repository Custom Property `Service ID` by the repository owner.
+   - Format: To be defined. When finalized, it will be enforced via the built-in GitHub Custom Property regex validator and mapped to CMDB.
+   - Enforcement: Until a valid `Service ID` is set, required checks block merges to the default branch. The repository is not auto-archived for this condition.
+2) **Security Scanning Onboarding**: Automation opens onboarding pull requests to enable SAST and SCA. Secret Scanning with Push Protection is enabled enterprise-wide.
+   - Enforcement: If onboarding is incomplete after 5 days from repository creation, required checks continue to block merges to the default branch until compliant; the repository remains writable. Once compliant, the status check passes.
+
+Notes:
+- Compliance automation validates the existence of the `Service ID` property and the presence of the three security configurations. Non-compliant repos are labeled and notified; required checks continue to block merges until remediation. No auto-archive for onboarding gaps.
+ - Rationale: Early archival is not used for onboarding gaps because archival removes write access and delays remediation; merge gating and notifications drive compliance without blocking fixes.
+
+### 5) Security Scanning and Alerts
+- **SAST (Static Application Security Testing)**
+  - Runs on every pull request across all branches.
+  - **Merge gate**: Findings with severity High or Critical block PR merge until resolved (baseline). Only the `secprodinfra` team may modify or approve changes to this threshold; any override requires `secprodinfra` approval.
+- **SCA (Software Composition Analysis)**
+  - Executes on PRs and at least nightly on the default branch.
+  - **No merge gate**: Do not block merges. Critical findings are reported in the pull request and tracked in vulnerability management.
+- **Secrets Scanning and Push Protection**
+  - Enabled enterprise-wide with bypass allowed.
+  - **Notifications**: Bypass events are sent via n8n automation to the API alerts Slack channel. All events are logged and reviewed weekly by security.
+
+### 6) Repository Lifecycle
+
+-- **Creation**
+  - Repositories may have local administrators. Enterprise policy is applied immediately and prevents changes to protected settings by repository administrators.
+  - Set `Service ID` custom property with a valid value.
+  - Automation opens onboarding PRs to enable SAST and SCA; Secret Scanning is enabled enterprise-wide.
+  - Non-compliance with onboarding does not trigger archival; required checks block merges and automation posts reminders until resolved.
+
+- **Active Maintenance**
+  - All changes to default branch via PRs with +1 approval minimum.
+  - SAST executes on every PR; High/Critical findings block merge until resolved.
+  - Secrets Push Protection blocks secret-containing pushes; any bypass is logged.
+  - Keep SCA active and address surfaced risks per security program SLAs.
+
+- **Dormancy and Archival**
+  - Automatic archival occurs only after 365 days of inactivity on the default branch or +30 days after a CMDB decommission event. Onboarding gaps and other base-control non-compliance do not trigger archival and instead block merges to the default branch.
+  - Archival sets the repository to read-only until remediation (for inactivity/decommission flows only).
+
+- **Decommissioning**
+  - When a repository is no longer needed, it should be archived and tagged with decommission metadata (including `Service ID`, owning team, rationale, and sunset date).
+  - For CMDB-driven decommission: Archive 30 days after CMDB status = decommissioned. After an additional 30 days in archived state, export repository data to long-term storage (e.g., S3), verify checksum, record audit evidence, and delete the repository in GitHub.
+  - Post-deletion recovery: Deleted repositories can be restored directly in GitHub for up to 90 days after deletion. After 90 days, recovery requires restoring from the S3 export (using the recorded bucket/key and checksum).
+
+- **Reinstatement**
+  - Once compliance is restored (custom property set, SAST/SCA/Secrets Scanning enabled), central automation unarchives the repository automatically or Security can unarchive upon request.
+
+### 7) Exceptions and Break-Glass Access
+- **Policy Exceptions**: Policy exceptions are not permitted.
+- **Bypass Controls**: Ruleset/branch protection bypass is disabled for Admins. Any emergency bypass requires a break-glass workflow with dual approval and audit logging.
+
+### 8) Enforcement and Monitoring
+- **Drift Detection**: Automated daily validation of required settings (custom properties, rulesets, security features). For onboarding gaps, automation opens an issue, labels, and sends reminders; merges remain blocked by required checks. Auto-archival is reserved for inactivity and CMDB decommission per Lifecycle.
+ - **Compliance Settings Check (App)**: An enterprise GitHub App evaluates required repository settings and the `Service ID` custom property on PR events and publishes the required check named "Compliance Settings Check". Org rulesets require this check, so merges are blocked until it succeeds. No per-repo workflow files are required.
+- **Evidence Collection**: Store compliance evidence (scan results, archival/export logs, checksum verifications) in the central compliance repository.
+- **Reporting**: Weekly compliance report to engineering leadership; monthly metrics to security governance.
+- **Auto-Archive Notifications**: For scheduled auto-archive events (inactivity, CMDB decommission), send email and Slack notifications to repository administrators at T-3 days and T-24 hours (mapped to Entra ID for contact details). Onboarding gaps do not schedule archival and receive reminder notifications only.
+
+### 9) Ownership and Effective Date
+- **Document Owner**: Security Engineering
+- **Effective Date**: 2025-08-01
+- **Next Review**: 2026-02-01
+
+
+
+
+### 10) CODEOWNERS Control (Hard Requirements)
+- **Location**: A `CODEOWNERS` file must exist at `.github/CODEOWNERS`.
+- **Coverage**: 100% path coverage is required. Include a final wildcard fallback owner line to catch any unmatched paths.
+- **Fallback owner**: Use a wildcard fallback to the team that owns the repository (for example, `* @org/codeowners-fallback`) as the last catch‑all entry.
+- **Team-only entries**: Use GitHub Teams only; do not list individual usernames.
+- **Review gating**: Default-branch rulesets must enable "Require review from Code Owners".
+- **Change control**: PRs that modify `CODEOWNERS` must receive at least one approval from a non‑committer (no self-approval).
+
+Recommended Practices
+- Order patterns from most-specific to least-specific; place the wildcard fallback last.
+- In monorepos, assign top-level directory ownership with nested overrides as needed.
+- Avoid gaps created by negation patterns unless a broader pattern re-captures paths.
