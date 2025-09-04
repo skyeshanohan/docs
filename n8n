@@ -1,0 +1,590 @@
+{
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "wiz-webhook",
+        "options": {}
+      },
+      "id": "30034702-385a-46db-bba2-09695ea117dd",
+      "name": "1. Wiz.io Webhook Trigger",
+      "type": "n8n-nodes-base.webhook",
+      "position": [
+        -64,
+        80
+      ],
+      "typeVersion": 1,
+      "webhookId": "wiz-jira-integration"
+    },
+    {
+      "parameters": {
+        "jsCode": "// Input Validation Node\n// Validates required fields and webhook authentication\n\nconst payload = $input.first().json;\nconst headers = payload.headers || {};\n\n// Validate webhook signature (if configured)\nconst expectedSignature = $env.WIZ_WEBHOOK_SECRET;\nconst receivedSignature = headers['x-wiz-signature'] || headers['authorization'];\n\nif (expectedSignature && receivedSignature !== expectedSignature) {\n  throw new Error('Invalid webhook signature');\n}\n\n// Validate required fields\nconst body = payload.body;\nif (!body) {\n  throw new Error('No payload body received');\n}\n\nconst requiredFields = [\n  'issue.id',\n  'issue.status', \n  'issue.severity',\n  'issue.type',\n  'control.name',\n  'resource.name'\n];\n\nconst missingFields = [];\nrequiredFields.forEach(field => {\n  const value = field.split('.').reduce((obj, key) => obj?.[key], body);\n  if (!value) {\n    missingFields.push(field);\n  }\n});\n\nif (missingFields.length > 0) {\n  throw new Error(`Missing required fields: ${missingFields.join(', ')}`);\n}\n\n// Log successful validation (remove in production)\nconsole.log('Webhook validation successful for issue:', body.issue.id);\n\nreturn {\n  json: {\n    validated: true,\n    issueId: body.issue.id,\n    timestamp: new Date().toISOString()\n  }\n};"
+      },
+      "id": "886f7ed6-1e5b-4fb8-8623-811ae2d76d5a",
+      "name": "2. Input Validation & Security",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        160,
+        80
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "# 2. Payload Parsing & Data Extraction\n\n## Purpose\nExtracts and structures all relevant data from the Wiz.io webhook payload for processing.\n\n## Data Extracted\n### Issue Information\n- **ID**: Unique Wiz issue identifier\n- **Status**: OPEN, CLOSED, or UPDATED\n- **Severity**: CRITICAL, HIGH, MEDIUM, LOW\n- **Type**: Security issue classification\n- **Description**: Detailed issue description\n- **Timestamps**: Created, updated, due dates\n\n### Control Details\n- **Name**: Security control name\n- **Description**: Control description\n- **Resolution**: Recommended remediation steps\n\n### Resource Information\n- **Type**: ENDPOINT, VIRTUAL_MACHINE, etc.\n- **Name**: Resource identifier\n- **Cloud Platform**: AWS, Azure, GCP\n- **Region**: Geographic location\n- **Subscription**: Cloud subscription details\n\n### Additional Data\n- **Evidence**: CVE details, affected resources\n- **Projects**: Associated project information\n- **Wiz URL**: Direct link to issue in Wiz platform\n\n## Output\nStructured data object ready for Jira integration.",
+        "height": 400,
+        "width": 350
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        257,
+        -160
+      ],
+      "id": "e189feac-2beb-49e2-a000-983bec902c29",
+      "name": "2. Payload Parsing & Data Extraction",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "operation": "getAll",
+        "returnAll": true,
+        "options": {}
+      },
+      "id": "3874a59f-cbb6-4a99-954b-1edf80c46d0b",
+      "name": "4. Search Jira for Existing Ticket",
+      "type": "n8n-nodes-base.jira",
+      "position": [
+        608,
+        80
+      ],
+      "typeVersion": 1,
+      "alwaysOutputData": true,
+      "credentials": {
+        "jiraSoftwareCloudApi": {
+          "id": "BYqHZWM0WWKOxDmc",
+          "name": "Jira SW Cloud account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "// Simplified existence check with error handling\ntry {\n  const jiraResults = $input.all();\n  const issueId = $('3. Parse Payload (Code Node)').first().json.issueId;\n  \n  let ticketExists = false;\n  let existingTicketKey = '';\n  let existingTicketStatus = '';\n  \n  // Check if any results match our issue ID\n  for (const result of jiraResults) {\n    const customFieldValue = result.json.fields?.[$env.JIRA_CUSTOM_FIELD || 'customfield_10037'];\n    \n    if (customFieldValue === issueId) {\n      ticketExists = true;\n      existingTicketKey = result.json.key;\n      existingTicketStatus = result.json.fields?.status?.name || '';\n      break;\n    }\n  }\n  \n  return {\n    json: {\n      issueId: issueId,\n      ticketExists: ticketExists,\n      existingTicketKey: existingTicketKey,\n      existingTicketStatus: existingTicketStatus,\n      totalResults: jiraResults.length,\n      searchSuccessful: true,\n      issueStatus: $('3. Parse Payload (Code Node)').first().json.issueStatus\n    }\n  };\n} catch (error) {\n  return {\n    json: {\n      issueId: $('3. Parse Payload (Set Node)').first().json.issueId,\n      ticketExists: false,\n      existingTicketKey: '',\n      existingTicketStatus: '',\n      totalResults: 0,\n      searchSuccessful: false,\n      error: error.message\n    }\n  };\n}"
+      },
+      "id": "152bfaa3-25a5-4f51-aef4-672f8e130645",
+      "name": "5. Check Ticket Existence",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        832,
+        80
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "# 3. Jira Ticket Search & Existence Check\n\n## Purpose\nSearches Jira for existing tickets related to the Wiz security issue to prevent duplicates.\n\n## Process Flow\n1. **Jira Search**: Queries Jira using custom field containing Wiz issue ID\n2. **Existence Check**: Determines if a ticket already exists for this issue\n3. **Status Retrieval**: Gets current status of existing ticket if found\n\n## Search Strategy\n- **Custom Field**: Uses `customfield_10037` (configurable via `JIRA_CUSTOM_FIELD` env var)\n- **Query**: Searches for exact match of Wiz issue ID\n- **Scope**: Searches across all tickets in the project\n\n## Key Features\n- **Duplicate Prevention**: Prevents creating multiple tickets for same issue\n- **Status Tracking**: Retrieves current ticket status for updates\n- **Error Handling**: Gracefully handles search failures\n- **Flexible Configuration**: Custom field ID configurable via environment\n\n## Environment Variables\n- `JIRA_CUSTOM_FIELD`: Custom field ID for storing Wiz issue ID (default: customfield_10037)\n\n## Output\n- `ticketExists`: Boolean indicating if ticket exists\n- `existingTicketKey`: Jira ticket key if found\n- `existingTicketStatus`: Current status of existing ticket",
+        "height": 400,
+        "width": 350
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        481,
+        -160
+      ],
+      "id": "f67c4195-8cb8-4e50-9654-05e3277c266c",
+      "name": "3. Jira Ticket Search & Existence Check",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "rules": {
+          "values": [
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.issueStatus }}",
+                    "rightValue": "OPEN",
+                    "id": "open-condition"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "OPEN"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.issueStatus }}",
+                    "rightValue": "CLOSED",
+                    "id": "closed-condition"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "CLOSED"
+            },
+            {
+              "conditions": {
+                "options": {
+                  "caseSensitive": true,
+                  "leftValue": "",
+                  "typeValidation": "loose",
+                  "version": 2
+                },
+                "conditions": [
+                  {
+                    "operator": {
+                      "type": "string",
+                      "operation": "equals"
+                    },
+                    "leftValue": "={{ $json.issueStatus }}",
+                    "rightValue": "UPDATED",
+                    "id": "updated-condition"
+                  }
+                ],
+                "combinator": "and"
+              },
+              "renameOutput": true,
+              "outputKey": "UPDATED"
+            }
+          ]
+        },
+        "looseTypeValidation": true,
+        "options": {}
+      },
+      "id": "46a43013-2b84-43de-8af1-0721cd7f8d30",
+      "name": "6. Route by Issue Status",
+      "type": "n8n-nodes-base.switch",
+      "position": [
+        1056,
+        64
+      ],
+      "typeVersion": 3.2
+    },
+    {
+      "parameters": {
+        "content": "# 4. Issue Status Routing Logic\n\n## Purpose\nRoutes the workflow based on the Wiz issue status to determine the appropriate action.\n\n## Routing Logic\n### OPEN Issues\n- **New Issues**: Creates new Jira tickets for security issues\n- **Existing Tickets**: Updates existing tickets with new information\n- **Flow**: Routes to ticket creation or update process\n\n### CLOSED Issues\n- **Resolution Updates**: Adds closure comments to existing Jira tickets\n- **Status Sync**: Notifies team that issue is resolved in Wiz\n- **Flow**: Routes to comment addition process\n\n### UPDATED Issues\n- **Change Notifications**: Adds update comments to existing Jira tickets\n- **Status Sync**: Notifies team of changes in Wiz issue\n- **Flow**: Routes to comment addition process\n\n## Key Features\n- **Status-Based Routing**: Different actions based on issue status\n- **Smart Logic**: Prevents unnecessary ticket creation for closed issues\n- **Update Tracking**: Maintains audit trail of issue changes\n- **Flexible Handling**: Supports all Wiz issue status types\n\n## Decision Points\n1. **Issue Status**: OPEN, CLOSED, or UPDATED\n2. **Ticket Existence**: Whether Jira ticket already exists\n3. **Action Type**: Create, update, or comment\n\n## Output\nRoutes to appropriate processing branch based on issue status.",
+        "height": 400,
+        "width": 350
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        960,
+        -560
+      ],
+      "id": "e207b05b-d91b-4d5c-9019-2fbda0553a83",
+      "name": "4. Issue Status Routing Logic",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 1
+          },
+          "conditions": [
+            {
+              "id": "ticket-exists-check",
+              "leftValue": "={{ $json.ticketExists }}",
+              "rightValue": "tr",
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {
+          "looseTypeValidation": true
+        }
+      },
+      "id": "822adebe-005c-45d6-b105-d0003900d8fc",
+      "name": "7. Check if Ticket Exists (OPEN)",
+      "type": "n8n-nodes-base.if",
+      "position": [
+        1280,
+        -160
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "jsCode": "// Enhanced Jira Description Formatter with error handling\n// Formats Wiz security issue data into a professional Jira description\n\ntry {\n  const inputData = $input.all();\n  const results = inputData.map(item => {\n    const data = item.json;\n    \n    // Get original payload data\n    const originalData = $('3. Parse Payload (Set Node)').first().json;\n    \n    // Helper functions\n    const getSeverityEmoji = (severity) => {\n      const emojiMap = {\n        'CRITICAL': '🔴',\n        'HIGH': '🟠', \n        'MEDIUM': '🟡',\n        'LOW': '🟢'\n      };\n      return emojiMap[severity?.toUpperCase()] || '⚪';\n    };\n\n    const formatDate = (dateString) => {\n      if (!dateString || dateString === 'No due date') return 'N/A';\n      try {\n        return new Date(dateString).toLocaleDateString('en-US', {\n          year: 'numeric',\n          month: 'short',\n          day: 'numeric',\n          hour: '2-digit',\n          minute: '2-digit'\n        });\n      } catch {\n        return 'Invalid Date';\n      }\n    };\n\n    // Extract CVE and resource info from evidence\n    const cveInfo = [];\n    const affectedResources = [];\n    \n    if (originalData.evidence && Array.isArray(originalData.evidence)) {\n      originalData.evidence.forEach(evidenceGroup => {\n        if (Array.isArray(evidenceGroup)) {\n          evidenceGroup.forEach(evidenceItem => {\n            if (evidenceItem.EvidenceObjectType === 'SECURITY_TOOL_FINDING') {\n              cveInfo.push({\n                name: evidenceItem.name || 'Unknown CVE',\n                description: evidenceItem.description || 'No description available',\n                version: evidenceItem.detailed_version || 'Unknown',\n                fixedVersion: evidenceItem.detailed_fixedVersion || 'Unknown',\n                library: evidenceItem.detailed_name || 'Unknown Library',\n                filePath: evidenceItem.detectedByFilePath || 'Unknown Path'\n              });\n            } else if (evidenceItem.EvidenceObjectType === 'VIRTUAL_MACHINE' || \n                       evidenceItem.EvidenceObjectType === 'ENDPOINT') {\n              affectedResources.push({\n                type: evidenceItem.EvidenceObjectType,\n                name: evidenceItem.name || 'Unknown Resource',\n                externalId: evidenceItem.externalId || 'Unknown ID'\n              });\n            }\n          });\n        }\n      });\n    }\n\n    // Build markdown description\n    let description = `# ${getSeverityEmoji(originalData.issueSeverity)} ${originalData.controlName}\n\n## Issue Details\n- **ID:** \\`${originalData.issueId}\\`\n- **Status:** ${originalData.issueStatus}\n- **Severity:** ${getSeverityEmoji(originalData.issueSeverity)} **${originalData.issueSeverity}**\n- **Type:** ${originalData.issueType}\n- **Created:** ${formatDate(originalData.issueCreated)}\n- **Due:** ${formatDate(originalData.issueDueAt)}\n\n## Description\n${originalData.issueDescription}\n\n`;\n\n    // Add CVE details if present\n    if (cveInfo.length > 0) {\n      description += `## Vulnerability Information\n`;\n      cveInfo.forEach((cve, index) => {\n        description += `### ${cve.name}\n- **Library:** \\`${cve.library}\\`\n- **Current Version:** \\`${cve.version}\\`\n- **Fixed Version:** \\`${cve.fixedVersion}\\`\n- **Location:** \\`${cve.filePath}\\`\n\n${cve.description}\n\n`;\n      });\n    }\n\n    // Add affected resources\n    if (affectedResources.length > 0) {\n      description += `## Affected Resources\n`;\n      affectedResources.forEach((res, index) => {\n        description += `${index + 1}. **${res.type.replace('_', ' ')}:** ${res.name} (\\`${res.externalId}\\`)\n`;\n      });\n      description += `\n`;\n    }\n\n    // Add primary resource\n    description += `## Primary Resource\n- **Name:** ${originalData.resourceName}\n- **Type:** ${originalData.resourceType}\n- **Cloud Platform:** ${originalData.resourceCloudPlatform}\n- **Subscription:** ${originalData.resourceSubscriptionName}\n- **Region:** ${originalData.resourceRegion}\n\n`;\n\n    // Add remediation if available\n    if (originalData.controlResolutionRecommendation && originalData.controlResolutionRecommendation !== 'No resolution recommendation provided') {\n      description += `## Remediation Steps\n${originalData.controlResolutionRecommendation}\n\n`;\n    }\n\n    // Add Wiz link\n    if (originalData.wizUrl) {\n      description += `## Wiz Issue\n[View in Wiz](${originalData.wizUrl})\n\n`;\n    }\n\n    // Add project scope\n    if (originalData.projects && originalData.projects !== 'No project information') {\n      description += `## Project Scope\n${originalData.projects}\n\n`;\n    }\n\n    // Footer\n    description += `---\n*Generated from Wiz Security Platform - ${new Date().toISOString()}*`;\n\n    return {\n      json: {\n        jiraDescription: description,\n        issueId: originalData.issueId,\n        severity: originalData.issueSeverity,\n        status: originalData.issueStatus,\n        threatUrl: originalData.wizUrl,\n        threatName: originalData.controlName,\n        resourceName: originalData.resourceName\n      }\n    };\n  });\n\n  return results;\n} catch (error) {\n  return {\n    json: {\n      error: true,\n      message: `Description formatting failed: ${error.message}`,\n      issueId: $('3. Parse Payload (Set Node)').first().json.issueId\n    }\n  };\n}"
+      },
+      "id": "099c95a0-aa06-464f-90b6-74256236d60c",
+      "name": "8. Format Jira Description",
+      "type": "n8n-nodes-base.code",
+      "position": [
+        1504,
+        -256
+      ],
+      "typeVersion": 2
+    },
+    {
+      "parameters": {
+        "content": "# 5. New Jira Ticket Creation\n\n## Purpose\nCreates new Jira tickets for OPEN security issues that don't have existing tickets.\n\n## Ticket Structure\n### Basic Information\n- **Project**: Configurable via `JIRA_PROJECT_ID` (default: Imminent Threats)\n- **Issue Type**: Configurable via `JIRA_ISSUE_TYPE_ID` (default: Task)\n- **Summary**: `[SEVERITY] Threat - [RESOURCE] - [CONTROL_NAME]`\n\n### Rich Description\n- **Formatted Markdown**: Professional security issue description\n- **Severity Indicators**: Color-coded emojis (🔴 Critical, 🟠 High, etc.)\n- **Issue Details**: ID, status, type, timestamps\n- **Vulnerability Info**: CVE details, affected libraries, versions\n- **Resource Information**: Cloud platform, region, subscription\n- **Remediation Steps**: Detailed resolution recommendations\n- **Wiz Integration**: Direct link to original issue\n\n### Custom Fields\n- **Imminent Threat ID**: Stores Wiz issue ID for tracking\n- **Source**: Set to 'Wiz' for identification\n\n## Key Features\n- **Professional Formatting**: Clean, readable ticket descriptions\n- **Comprehensive Data**: All relevant security information included\n- **Traceability**: Links back to original Wiz issue\n- **Configurable**: Project and field mappings via environment variables\n\n## Environment Variables\n- `JIRA_PROJECT_ID`: Target Jira project ID\n- `JIRA_ISSUE_TYPE_ID`: Issue type for new tickets\n- `JIRA_CUSTOM_FIELD`: Field for storing Wiz issue ID\n- `JIRA_SOURCE_FIELD`: Field for identifying source system\n\n## Output\nNew Jira ticket with comprehensive security issue information.",
+        "height": 400,
+        "width": 350
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1377,
+        -496
+      ],
+      "id": "f7a8bde6-0c00-4dd8-864f-8a68ef32657d",
+      "name": "5. New Jira Ticket Creation",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "project": {
+          "__rl": true,
+          "value": "={{ $env.JIRA_PROJECT_ID || '10000' }}",
+          "mode": "list",
+          "cachedResultName": "{{ $env.JIRA_PROJECT_NAME || 'Imminent Threats' }}"
+        },
+        "issueType": {
+          "__rl": true,
+          "value": "={{ $env.JIRA_ISSUE_TYPE_ID || '10003' }}",
+          "mode": "list",
+          "cachedResultName": "{{ $env.JIRA_ISSUE_TYPE_NAME || 'Task' }}"
+        },
+        "summary": "={{ $json.severity }} Threat - {{ $json.resourceName }} - {{ $json.threatName }}",
+        "additionalFields": {
+          "description": "={{ $json.jiraDescription }}",
+          "customFieldsUi": {
+            "customFieldsValues": [
+              {
+                "fieldId": {
+                  "__rl": true,
+                  "value": "={{ $env.JIRA_CUSTOM_FIELD || 'customfield_10037' }}",
+                  "mode": "list",
+                  "cachedResultName": "{{ $env.JIRA_CUSTOM_FIELD_NAME || 'Imminent Threat ID' }}"
+                },
+                "fieldValue": "={{ $json.issueId }}"
+              },
+              {
+                "fieldId": {
+                  "__rl": true,
+                  "value": "={{ $env.JIRA_SOURCE_FIELD || 'customfield_10038' }}",
+                  "mode": "list",
+                  "cachedResultName": "{{ $env.JIRA_SOURCE_FIELD_NAME || 'Source' }}"
+                },
+                "fieldValue": "Wiz"
+              }
+            ]
+          }
+        }
+      },
+      "id": "3e0151d9-7eee-4804-858b-eaa5ed0ba187",
+      "name": "9. Create New Jira Ticket",
+      "type": "n8n-nodes-base.jira",
+      "position": [
+        1728,
+        -256
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "issueComment",
+        "issueKey": "={{ $json.existingTicketKey }}",
+        "comment": "🔴 **Issue Status Update from Wiz.io**\n\nThis issue has been **CLOSED** in Wiz.io.\n\n**Updated:** {{ new Date().toISOString() }}\n**Wiz Issue ID:** {{ $json.issueId }}\n\nPlease verify the resolution and update the ticket status accordingly.\n\n---\n*Automated update from Wiz Security Platform*",
+        "options": {}
+      },
+      "id": "e8e2f5a6-7902-4b6a-8981-d00f612b4a45",
+      "name": "10. Add Closed Comment",
+      "type": "n8n-nodes-base.jira",
+      "position": [
+        1728,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "resource": "issueComment",
+        "issueKey": "={{ $json.existingTicketKey }}",
+        "comment": "🟡 **Issue Status Update from Wiz.io**\n\nThis issue has been **UPDATED** in Wiz.io.\n\n**Updated:** {{ new Date().toISOString() }}\n**Wiz Issue ID:** {{ $json.issueId }}\n\nPlease review the changes and update the ticket as needed.\n\n---\n*Automated update from Wiz Security Platform*",
+        "options": {}
+      },
+      "id": "0c561139-64f9-4b6d-9ee2-6826ca829052",
+      "name": "11. Add Updated Comment",
+      "type": "n8n-nodes-base.jira",
+      "position": [
+        1728,
+        272
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "# 6. Existing Ticket Updates & Comments\n\n## Purpose\nUpdates existing Jira tickets with status changes and notifications from Wiz.io.\n\n## Update Types\n### CLOSED Issues\n- **Status Notification**: Adds closure comment to existing ticket\n- **Resolution Tracking**: Notifies team that issue is resolved in Wiz\n- **Action Required**: Prompts team to verify resolution and update ticket status\n\n### UPDATED Issues\n- **Change Notification**: Adds update comment to existing ticket\n- **Status Sync**: Notifies team of changes in Wiz issue\n- **Audit Trail**: Maintains history of issue modifications\n\n## Comment Structure\n### Closure Comments\n- **Header**: 🔴 Issue Status Update from Wiz.io\n- **Status**: CLOSED notification\n- **Timestamp**: When the update occurred\n- **Issue ID**: Wiz issue identifier for reference\n- **Action**: Request to verify resolution\n\n### Update Comments\n- **Header**: 🟡 Issue Status Update from Wiz.io\n- **Status**: UPDATED notification\n- **Timestamp**: When the update occurred\n- **Issue ID**: Wiz issue identifier for reference\n- **Action**: Request to review changes\n\n## Key Features\n- **Status Synchronization**: Keeps Jira tickets in sync with Wiz\n- **Audit Trail**: Maintains complete history of issue changes\n- **Team Notification**: Ensures team is aware of status changes\n- **Professional Formatting**: Clean, consistent comment structure\n\n## Output\nUpdated Jira tickets with appropriate status change comments.",
+        "height": 400,
+        "width": 350
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1601,
+        -160
+      ],
+      "id": "181ce03e-f906-47e6-95c3-52b44127c51c",
+      "name": "6. Existing Ticket Updates & Comments",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: true,\n  message: 'Webhook processed successfully',\n  issueId: $json.issueId,\n  action: $json.ticketExists ? 'Updated existing ticket' : 'Created new ticket',\n  timestamp: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "id": "504e8994-a413-4f52-a2bd-0f0203c517a7",
+      "name": "12. Success Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1952,
+        80
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "# 7. Webhook Response Handling\n\n## Purpose\nProvides appropriate HTTP responses to Wiz.io webhook requests, indicating success or failure of the integration process.\n\n## Response Types\n### Success Response\n- **Status**: 200 OK\n- **Content**: JSON with success details\n- **Data**: Issue ID, action taken, timestamp\n- **Actions**: Created new ticket or updated existing ticket\n\n### Error Response\n- **Status**: 200 OK (to prevent webhook retries)\n- **Content**: JSON with error details\n- **Data**: Error message, issue ID, timestamp\n- **Handling**: Graceful error reporting without breaking webhook flow\n\n## Response Structure\n### Success Response\n```json\n{\n  \"success\": true,\n  \"message\": \"Webhook processed successfully\",\n  \"issueId\": \"wiz-issue-id\",\n  \"action\": \"Created new ticket\" | \"Updated existing ticket\",\n  \"timestamp\": \"2024-01-01T00:00:00.000Z\"\n}\n```\n\n### Error Response\n```json\n{\n  \"success\": false,\n  \"error\": \"Error description\",\n  \"issueId\": \"wiz-issue-id\",\n  \"timestamp\": \"2024-01-01T00:00:00.000Z\"\n}\n```\n\n## Key Features\n- **Consistent Format**: Standardized JSON responses\n- **Error Handling**: Graceful failure reporting\n- **Audit Trail**: Timestamps for all responses\n- **Action Tracking**: Clear indication of what action was taken\n- **Webhook Compatibility**: Proper HTTP status codes for Wiz.io\n\n## Output\nHTTP response sent back to Wiz.io webhook caller.",
+        "height": 400,
+        "width": 350
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        1825,
+        -160
+      ],
+      "id": "59396613-d042-4cb1-a12f-ee19348da4e4",
+      "name": "7. Webhook Response Handling",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ JSON.stringify({\n  success: false,\n  error: $json.message || 'Unknown error occurred',\n  issueId: $json.issueId || 'Unknown',\n  timestamp: new Date().toISOString()\n}) }}",
+        "options": {}
+      },
+      "id": "a9e94e3c-60ea-4b66-8cda-23381f094df3",
+      "name": "13. Error Response",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "position": [
+        1504,
+        -64
+      ],
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "content": "# 1. Webhook Reception & Security Validation\n\n## Purpose\nThis section handles incoming webhooks from Wiz.io security platform and ensures data integrity.\n\n## Process Flow\n1. **Webhook Trigger**: Receives POST requests from Wiz.io when security issues are created, updated, or resolved\n2. **Input Validation**: Validates webhook signature and required fields to prevent unauthorized access\n3. **Security Check**: Ensures all mandatory fields (issue ID, status, severity, etc.) are present\n\n## Key Features\n- **Authentication**: Validates webhook signature using environment variable `WIZ_WEBHOOK_SECRET`\n- **Field Validation**: Checks for required fields like issue ID, status, severity, control name, and resource name\n- **Error Handling**: Returns detailed error messages for missing or invalid data\n- **Logging**: Tracks successful validations for monitoring and debugging\n\n## Environment Variables Required\n- `WIZ_WEBHOOK_SECRET`: Secret key for webhook authentication\n\n## Output\nPasses validated webhook data to the payload parsing section.",
+        "height": 400,
+        "width": 350
+      },
+      "type": "n8n-nodes-base.stickyNote",
+      "position": [
+        -191,
+        -160
+      ],
+      "id": "755cdcac-de4b-4097-9fd9-dde6c6f1233c",
+      "name": "1. Webhook Reception & Security",
+      "typeVersion": 1
+    },
+    {
+      "parameters": {
+        "jsCode": "// Step 3: Parse Payload - Code Node\n// Extracts and flattens all important data from the Wiz.io webhook payload\n\ntry {\n  // Get the original webhook data\n  const webhookData = $('1. Wiz.io Webhook Trigger').first().json;\n  const body = webhookData.body;\n  \n  // Validate that we have the required data\n  if (!body || !body.issue || !body.control || !body.resource) {\n    throw new Error('Invalid webhook payload structure');\n  }\n  \n  // Extract all the fields we need\n  const result = {\n    // Issue fields\n    issueId: body.issue.id,\n    issueStatus: body.issue.status,\n    issueDescription: body.issue.description || 'No description provided',\n    issueSeverity: body.issue.severity,\n    issueType: body.issue.type,\n    issueCreated: body.issue.created,\n    issueUpdated: body.issue.updated,\n    issueDueAt: body.issue.dueAt || 'No due date',\n    \n    // Control fields\n    controlName: body.control.name || 'Unknown Control',\n    controlDescription: body.control.description || 'No control description',\n    controlResolutionRecommendation: body.control.resolutionRecommendation || 'No resolution recommendation provided',\n    \n    // Resource fields\n    resourceType: body.resource.type || 'Unknown',\n    resourceName: body.resource.name || 'Unknown Resource',\n    resourceSubscriptionName: body.resource.subscriptionName || 'Unknown Subscription',\n    resourceCloudPlatform: body.resource.cloudPlatform || 'Unknown Platform',\n    resourceRegion: body.resource.region || 'Unknown Region',\n    \n    // Additional fields\n    evidence: body.issue.evidence || [],\n    projects: body.issue.projects || 'No project information',\n    \n    // Computed fields\n    wizUrl: `https://app.wiz.io/issues#%7E%28issue%7E%27${body.issue.id}%29`,\n    jqlQuery: `customfield_10037 = \"${body.issue.id}\"`,\n    \n    // Metadata\n    parsedAt: new Date().toISOString(),\n    source: 'wiz-webhook'\n  };\n  \n  // Log successful parsing (remove in production)\n  console.log('Successfully parsed payload for issue:', result.issueId);\n  \n  return {\n    json: result\n  };\n  \n} catch (error) {\n  // Return error information\n  console.error('Payload parsing error:', error.message);\n  \n  return {\n    json: {\n      error: true,\n      message: `Payload parsing failed: ${error.message}`,\n      issueId: 'unknown',\n      parsedAt: new Date().toISOString(),\n      source: 'wiz-webhook'\n    }\n  };\n}\n"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        384,
+        80
+      ],
+      "id": "11eaf16e-306c-4169-a380-69cf091e7afb",
+      "name": "3. Parse Payload (Code Node)"
+    }
+  ],
+  "connections": {
+    "1. Wiz.io Webhook Trigger": {
+      "main": [
+        [
+          {
+            "node": "2. Input Validation & Security",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "2. Input Validation & Security": {
+      "main": [
+        [
+          {
+            "node": "3. Parse Payload (Code Node)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "4. Search Jira for Existing Ticket": {
+      "main": [
+        [
+          {
+            "node": "5. Check Ticket Existence",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "5. Check Ticket Existence": {
+      "main": [
+        [
+          {
+            "node": "6. Route by Issue Status",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "6. Route by Issue Status": {
+      "main": [
+        [
+          {
+            "node": "7. Check if Ticket Exists (OPEN)",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "10. Add Closed Comment",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "11. Add Updated Comment",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "7. Check if Ticket Exists (OPEN)": {
+      "main": [
+        [
+          {
+            "node": "13. Error Response",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "8. Format Jira Description",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "8. Format Jira Description": {
+      "main": [
+        [
+          {
+            "node": "9. Create New Jira Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "9. Create New Jira Ticket": {
+      "main": [
+        [
+          {
+            "node": "12. Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "10. Add Closed Comment": {
+      "main": [
+        [
+          {
+            "node": "12. Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "11. Add Updated Comment": {
+      "main": [
+        [
+          {
+            "node": "12. Success Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "3. Parse Payload (Code Node)": {
+      "main": [
+        [
+          {
+            "node": "4. Search Jira for Existing Ticket",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {
+    "1. Wiz.io Webhook Trigger": [
+      {}
+    ]
+  },
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "46e5a3aa9394122d1bf82e23eaecda5bb5845b89c961e580a6eb115e39385c2a"
+  }
+}
